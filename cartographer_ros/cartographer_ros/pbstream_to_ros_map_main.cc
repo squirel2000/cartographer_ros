@@ -69,6 +69,7 @@ void Run(const std::string& pbstream_filename, const std::string& map_filestem,
 }  // namespace cartographer_ros
 
 int main(int argc, char** argv) {
+  // Initialize
   FLAGS_alsologtostderr = true;
   google::InitGoogleLogging(argv[0]);
   google::ParseCommandLineFlags(&argc, &argv, true);
