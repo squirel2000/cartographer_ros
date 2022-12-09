@@ -139,17 +139,18 @@ LaserScanToPointCloudWithIntensities(const LaserMessageType& msg) {
   } else {
     CHECK_GT(msg.angle_min, msg.angle_max);
   }
+  // Convert ROS "msg" to the datatype of PointCloudWithIntensities as the input data of cartographer
   PointCloudWithIntensities point_cloud;
   float angle = msg.angle_min;
   for (size_t i = 0; i < msg.ranges.size(); ++i) {
     const auto& echoes = msg.ranges[i];
-    if (HasEcho(echoes)) {
-      const float first_echo = GetFirstEcho(echoes);
+    if (HasEcho(echoes)) {  // 对于LaserScan的ROS消息这个函数将总是返回true，对于MultiEchoLaserScan则检查字段ranges是否为空。 
+      const float first_echo = GetFirstEcho(echoes);  // 如果存在测量数据，则通过函数GetFirstEcho获取第一个扫描数据。对于LaserScan直接返回测量数据，对于MultiEchoLaserScan则返回第一个测量数据。所以我刚刚说单线激光和多线激光在这里似乎没有什么差别， 多线激光也是当作单线使的。
       if (msg.range_min <= first_echo && first_echo <= msg.range_max) {
-        const Eigen::AngleAxisf rotation(angle, Eigen::Vector3f::UnitZ());
+        const Eigen::AngleAxisf rotation(angle, Eigen::Vector3f::UnitZ()); // UnitZ: 3x1 vector, 激光雷达都是让它水平的扫描一个平面，所以这里才会构造一个沿机器人Z轴转动的转动矢量
         const cartographer::sensor::TimedRangefinderPoint point{
             rotation * (first_echo * Eigen::Vector3f::UnitX()),
-            i * msg.time_increment};
+            i * msg.time_increment};  // X轴的正方向是机器人的前进方向。所以在第18行中通过first_echo构建一个X轴方向上的运动矢量，并左乘旋转矩阵就可以得到扫描点在机器人坐标系下的坐标
         point_cloud.points.push_back(point);
         if (msg.intensities.size() > 0) {
           CHECK_EQ(msg.intensities.size(), msg.ranges.size());
@@ -160,9 +161,13 @@ LaserScanToPointCloudWithIntensities(const LaserMessageType& msg) {
           point_cloud.intensities.push_back(0.f);
         }
       }
+// if (i == 5)    
+// std::cout << "point_cloud[5]: " << angle << "; " << first_echo << "; " << point_cloud.points.at(5).position[0] << "; " << point_cloud.points.at(5).position[1] << std::endl;
     }
     angle += msg.angle_increment;
   }
+  // 对时间戳做了如下的调整，个人猜测Cartographer中的时间戳是以数据采样结束为参考的。 所以这里的时间戳以最后一个测量数据为基准，point_cloud中所有的测量点都偏移了一段时间
+  // Take the final timestamp as the base and refine time stamp of each point (360 points)?
   ::cartographer::common::Time timestamp = FromRos(msg.header.stamp);
   if (!point_cloud.points.empty()) {
     const double duration = point_cloud.points.back().time;
@@ -407,7 +412,7 @@ std::unique_ptr<nav_msgs::OccupancyGrid> CreateOccupancyGridMsg(
       const int value =
           observed == 0
               ? -1
-              : ::cartographer::common::RoundToInt((1. - color / 255.) * 100.);
+              : ::cartographer::common::RoundToInt((1. - color / 255.) * 100.);  // -1: unknown; 0: free ; 100: obstacle (Note the reverse: (1. - color / 255.))
       CHECK_LE(-1, value);
       CHECK_GE(100, value);
       occupancy_grid->data.push_back(value);

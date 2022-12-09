@@ -217,7 +217,7 @@ void SensorBridge::HandleLaserScan(
   if (points.points.empty()) {
     return;
   }
-  CHECK_LE(points.points.back().time, 0.f);
+  CHECK_LE(points.points.back().time, 0.f); // 最后一个点云数据的时间小于等于0  Why?
   // TODO(gaschler): Use per-point time instead of subdivisions.
   for (int i = 0; i != num_subdivisions_per_laser_scan_; ++i) {
     const size_t start_index =
@@ -244,7 +244,7 @@ void SensorBridge::HandleLaserScan(
       continue;
     }
     sensor_to_previous_subdivision_time_[sensor_id] = subdivision_time;
-    for (auto& point : subdivision) {
+    for (auto& point : subdivision) { // Make the time of each point in subdivision start from time_to_subdivision_end
       point.time -= time_to_subdivision_end;
     }
     CHECK_EQ(subdivision.back().time, 0.f);

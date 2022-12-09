@@ -36,7 +36,8 @@ namespace cartographer_ros {
 // TODO(pedrofernandez): Write test.
 ::cartographer::common::Time FromRos(const ::ros::Time& time) {
   // The epoch of the ICU Universal Time Scale is "0001-01-01 00:00:00.0 +0000",
-  // exactly 719162 days before the Unix epoch.
+  // exactly 719162 days before the Unix epoch. there are 62135596800 seconds =
+  // 719162 days between 00010101 and 19700101.
   return ::cartographer::common::FromUniversal(
       (time.sec +
        ::cartographer::common::kUtsEpochOffsetFromUnixEpochInSeconds) *

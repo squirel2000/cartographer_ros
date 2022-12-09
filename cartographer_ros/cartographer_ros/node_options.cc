@@ -33,24 +33,24 @@ NodeOptions CreateNodeOptions(
           lua_parameter_dictionary->GetDictionary("map_builder").get());
   options.map_frame = lua_parameter_dictionary->GetString("map_frame");
   options.lookup_transform_timeout_sec =
-      lua_parameter_dictionary->GetDouble("lookup_transform_timeout_sec");
+      lua_parameter_dictionary->GetDouble("lookup_transform_timeout_sec"); // 0.2
   options.submap_publish_period_sec =
-      lua_parameter_dictionary->GetDouble("submap_publish_period_sec");
+      lua_parameter_dictionary->GetDouble("submap_publish_period_sec");// 0.3
   options.pose_publish_period_sec =
-      lua_parameter_dictionary->GetDouble("pose_publish_period_sec");
+      lua_parameter_dictionary->GetDouble("pose_publish_period_sec"); // 5e-3
   options.trajectory_publish_period_sec =
-      lua_parameter_dictionary->GetDouble("trajectory_publish_period_sec");
-  if (lua_parameter_dictionary->HasKey("publish_to_tf")) {
+      lua_parameter_dictionary->GetDouble("trajectory_publish_period_sec"); // 30e-3 
+  if (lua_parameter_dictionary->HasKey("publish_to_tf")) { // default = true in node_options.h
     options.publish_to_tf =
         lua_parameter_dictionary->GetBool("publish_to_tf");
   }
   if (lua_parameter_dictionary->HasKey("publish_tracked_pose")) {
     options.publish_tracked_pose =
-        lua_parameter_dictionary->GetBool("publish_tracked_pose");
+        lua_parameter_dictionary->GetBool("publish_tracked_pose");   // false
   }
   if (lua_parameter_dictionary->HasKey("use_pose_extrapolator")) {
     options.use_pose_extrapolator =
-        lua_parameter_dictionary->GetBool("use_pose_extrapolator");
+        lua_parameter_dictionary->GetBool("use_pose_extrapolator"); // default = true
   }
   return options;
 }

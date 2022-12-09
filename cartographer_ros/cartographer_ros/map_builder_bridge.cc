@@ -114,6 +114,13 @@ void MapBuilderBridge::LoadState(const std::string& state_filename,
       << "The file containing the state to be loaded must be a "
          ".pbstream file.";
   LOG(INFO) << "Loading saved state '" << state_filename << "'...";
+
+  // std::fstream input(state_filename, std::ios::in | std::ios::binary);
+  // address_book.ParseFromIstream(&input);
+  // std::string str;
+  // google::protobuf::TextFormat::PrintToString(address_book, &str);
+  // std::cout << "\n2. PrintToString():\n" << str << std::endl;
+
   cartographer::io::ProtoStreamReader stream(state_filename);
   map_builder_->LoadState(&stream, load_frozen_state);
 }
@@ -122,25 +129,26 @@ int MapBuilderBridge::AddTrajectory(
     const std::set<cartographer::mapping::TrajectoryBuilderInterface::SensorId>&
         expected_sensor_ids,
     const TrajectoryOptions& trajectory_options) {
+      
   const int trajectory_id = map_builder_->AddTrajectoryBuilder(
       expected_sensor_ids, trajectory_options.trajectory_builder_options,
-      [this](const int trajectory_id, const ::cartographer::common::Time time,
+      [this](const int trajectory_id, const ::cartographer::common::Time time, // Create a local_slam_result_callback in map_builder_
              const Rigid3d local_pose,
              ::cartographer::sensor::RangeData range_data_in_local,
              const std::unique_ptr<
                  const ::cartographer::mapping::TrajectoryBuilderInterface::
                      InsertionResult>) {
-        OnLocalSlamResult(trajectory_id, time, local_pose, range_data_in_local);
+        OnLocalSlamResult(trajectory_id, time, local_pose, range_data_in_local); // Create an "OnLocalSlamResult" callback function
       });
   LOG(INFO) << "Added trajectory with ID '" << trajectory_id << "'.";
 
   // Make sure there is no trajectory with 'trajectory_id' yet.
   CHECK_EQ(sensor_bridges_.count(trajectory_id), 0);
   sensor_bridges_[trajectory_id] = absl::make_unique<SensorBridge>(
-      trajectory_options.num_subdivisions_per_laser_scan,
+      trajectory_options.num_subdivisions_per_laser_scan, // num_subdivisions_per_laser_scan = 1; 
       trajectory_options.ignore_out_of_order_messages,
-      trajectory_options.tracking_frame,
-      node_options_.lookup_transform_timeout_sec, tf_buffer_,
+      trajectory_options.tracking_frame, // tracking_frame = "base_footprint" / "imu_link"
+      node_options_.lookup_transform_timeout_sec, tf_buffer_,  // lookup_transform_timeout_sec = 0.2,
       map_builder_->GetTrajectoryBuilder(trajectory_id));
   auto emplace_result =
       trajectory_options_.emplace(trajectory_id, trajectory_options);
@@ -219,8 +227,8 @@ cartographer_ros_msgs::SubmapList MapBuilderBridge::GetSubmapList() {
   for (const auto& submap_id_pose :
        map_builder_->pose_graph()->GetAllSubmapPoses()) {
     cartographer_ros_msgs::SubmapEntry submap_entry;
-    submap_entry.is_frozen = map_builder_->pose_graph()->IsTrajectoryFrozen(
-        submap_id_pose.id.trajectory_id);
+    submap_entry.is_frozen = map_builder_->pose_graph()->IsTrajectoryFrozen( // is_frozen = 0
+        submap_id_pose.id.trajectory_id); // trajectory_id = 0
     submap_entry.trajectory_id = submap_id_pose.id.trajectory_id;
     submap_entry.submap_index = submap_id_pose.id.submap_index;
     submap_entry.submap_version = submap_id_pose.data.version;

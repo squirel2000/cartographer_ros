@@ -97,11 +97,12 @@ Node::Node(
     : node_options_(node_options),
       map_builder_bridge_(node_options_, std::move(map_builder), tf_buffer) {
   absl::MutexLock lock(&mutex_);
-  if (collect_metrics) {
+  if (collect_metrics) {  // collect_metrics == false  (metric values are defined in /home/asus/cartographer_ws/src/cartographer/cartographer/mapping/internal/2d/local_trajectory_builder_2d.cc) 
     metrics_registry_ = absl::make_unique<metrics::FamilyFactory>();
     carto::metrics::RegisterAllMetrics(metrics_registry_.get());
   }
 
+  // Create publishers for topics
   submap_list_publisher_ =
       node_handle_.advertise<::cartographer_ros_msgs::SubmapList>(
           kSubmapListTopic, kLatestOnlyPublisherQueueSize);
@@ -119,10 +120,13 @@ Node::Node(
         node_handle_.advertise<::geometry_msgs::PoseStamped>(
             kTrackedPoseTopic, kLatestOnlyPublisherQueueSize);
   }
+
+  // Create services: "finish_trajectory", "write_state", "get_trajectory_states" declared in /cartographer_ros/node_constants.h
   service_servers_.push_back(node_handle_.advertiseService(
       kSubmapQueryServiceName, &Node::HandleSubmapQuery, this));
   service_servers_.push_back(node_handle_.advertiseService(
       kTrajectoryQueryServiceName, &Node::HandleTrajectoryQuery, this));
+  // Provide the initial pose to pose_graph_->SetInitialTrajectoryPose() in map_builder.cc
   service_servers_.push_back(node_handle_.advertiseService(
       kStartTrajectoryServiceName, &Node::HandleStartTrajectory, this));
   service_servers_.push_back(node_handle_.advertiseService(
@@ -138,16 +142,17 @@ Node::Node(
       node_handle_.advertise<sensor_msgs::PointCloud2>(
           kScanMatchedPointCloudTopic, kLatestOnlyPublisherQueueSize);
 
+  // Create wall timers for publishing submap, node, trajectoryNode, LandmarkPose, Constraint
   wall_timers_.push_back(node_handle_.createWallTimer(
-      ::ros::WallDuration(node_options_.submap_publish_period_sec),
+      ::ros::WallDuration(node_options_.submap_publish_period_sec),// 1.0
       &Node::PublishSubmapList, this));
   if (node_options_.pose_publish_period_sec > 0) {
     publish_local_trajectory_data_timer_ = node_handle_.createTimer(
-        ::ros::Duration(node_options_.pose_publish_period_sec),
+        ::ros::Duration(node_options_.pose_publish_period_sec), // 10e-3,
         &Node::PublishLocalTrajectoryData, this);
   }
   wall_timers_.push_back(node_handle_.createWallTimer(
-      ::ros::WallDuration(node_options_.trajectory_publish_period_sec),
+      ::ros::WallDuration(node_options_.trajectory_publish_period_sec), // 30e-3
       &Node::PublishTrajectoryNodeList, this));
   wall_timers_.push_back(node_handle_.createWallTimer(
       ::ros::WallDuration(node_options_.trajectory_publish_period_sec),
@@ -200,7 +205,7 @@ void Node::AddExtrapolator(const int trajectory_id,
           ? options.trajectory_builder_options.trajectory_builder_3d_options()
                 .imu_gravity_time_constant()
           : options.trajectory_builder_options.trajectory_builder_2d_options()
-                .imu_gravity_time_constant();
+                .imu_gravity_time_constant();   // imu_gravity_time_constant = 10.,
   extrapolators_.emplace(
       std::piecewise_construct, std::forward_as_tuple(trajectory_id),
       std::forward_as_tuple(
@@ -397,6 +402,7 @@ Node::ComputeExpectedSensorIds(const TrajectoryOptions& options) const {
 int Node::AddTrajectory(const TrajectoryOptions& options) {
   const std::set<cartographer::mapping::TrajectoryBuilderInterface::SensorId>
       expected_sensor_ids = ComputeExpectedSensorIds(options);
+  // Create a "NEW" trajectory?
   const int trajectory_id =
       map_builder_bridge_.AddTrajectory(expected_sensor_ids, options);
   AddExtrapolator(trajectory_id, options);
@@ -564,6 +570,7 @@ bool Node::HandleStartTrajectory(
   std::tie(std::ignore, trajectory_options) = LoadOptions(
       request.configuration_directory, request.configuration_basename);
 
+  // Check 1. initial_pose 2. status of the specific trajectory_id defined in request; 
   if (request.use_initial_pose) {
     const auto pose = ToRigid3d(request.initial_pose);
     if (!pose.IsValid()) {
@@ -586,6 +593,7 @@ bool Node::HandleStartTrajectory(
       return true;
     }
 
+    // TODO: What're the memebers and functions in the InitialTrajectoryPose
     ::cartographer::mapping::proto::InitialTrajectoryPose
         initial_trajectory_pose;
     initial_trajectory_pose.set_to_trajectory_id(
@@ -598,6 +606,7 @@ bool Node::HandleStartTrajectory(
          .mutable_initial_trajectory_pose() = initial_trajectory_pose;
   }
 
+  // Check 1. trajectory options 2.topic names
   if (!ValidateTrajectoryOptions(trajectory_options)) {
     response.status.message = "Invalid trajectory options.";
     LOG(ERROR) << response.status.message;
@@ -614,6 +623,7 @@ bool Node::HandleStartTrajectory(
   return true;
 }
 
+// TODO: How to estimate the initial pose for the case of pure localization?
 void Node::StartTrajectoryWithDefaultTopics(const TrajectoryOptions& options) {
   absl::MutexLock lock(&mutex_);
   CHECK(ValidateTrajectoryOptions(options));
@@ -804,6 +814,7 @@ void Node::HandleImuMessage(const int trajectory_id,
                             const std::string& sensor_id,
                             const sensor_msgs::Imu::ConstPtr& msg) {
   absl::MutexLock lock(&mutex_);
+  // Discard the data based on imu_sampling_ratio (down sampling)
   if (!sensor_samplers_.at(trajectory_id).imu_sampler.Pulse()) {
     return;
   }
@@ -865,6 +876,8 @@ void Node::LoadState(const std::string& state_filename,
 
 void Node::MaybeWarnAboutTopicMismatch(
     const ::ros::WallTimerEvent& unused_timer_event) {
+      
+  // Get the published topics from the ROS master
   ::ros::master::V_TopicInfo ros_topics;
   ::ros::master::getTopics(ros_topics);
   std::set<std::string> published_topics;
@@ -874,6 +887,8 @@ void Node::MaybeWarnAboutTopicMismatch(
     published_topics.insert(resolved_topic);
     published_topics_string << resolved_topic << ",";
   }
+
+  // Check if the subscribed topic exists in the published_topics
   bool print_topics = false;
   for (const auto& entry : subscribers_) {
     int trajectory_id = entry.first;

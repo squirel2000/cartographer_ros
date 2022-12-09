@@ -22,6 +22,7 @@
 #include "gflags/gflags.h"
 #include "tf2_ros/transform_listener.h"
 
+// macro of gflags to define the parameters
 DEFINE_bool(collect_metrics, false,
             "Activates the collection of runtime metrics. If activated, the "
             "metrics can be accessed via a ROS service.");
@@ -35,7 +36,7 @@ DEFINE_string(configuration_basename, "",
 DEFINE_string(load_state_filename, "",
               "If non-empty, filename of a .pbstream file to load, containing "
               "a saved SLAM state.");
-DEFINE_bool(load_frozen_state, true,
+DEFINE_bool(load_frozen_state, true,  // true: discard the older sensor data in the new pose_graph_ in map_builder.cc
             "Load the saved state as frozen (non-optimized) trajectories.");
 DEFINE_bool(
     start_trajectory_with_default_topics, true,
@@ -47,15 +48,18 @@ DEFINE_string(
 namespace cartographer_ros {
 namespace {
 
+// 对象"node"控制着系统的业务逻辑; 对象"map_builder"则用于完成建图
 void Run() {
   constexpr double kTfBufferCacheTimeInSeconds = 10.;
   tf2_ros::Buffer tf_buffer{::ros::Duration(kTfBufferCacheTimeInSeconds)};
   tf2_ros::TransformListener tf(tf_buffer);
+
   NodeOptions node_options;
   TrajectoryOptions trajectory_options;
   std::tie(node_options, trajectory_options) =
       LoadOptions(FLAGS_configuration_directory, FLAGS_configuration_basename);
 
+  // 构建了建图器map_builder和ROS封装对象node
   auto map_builder =
       cartographer::mapping::CreateMapBuilder(node_options.map_builder_options);
   Node node(node_options, std::move(map_builder), &tf_buffer,
@@ -64,16 +68,21 @@ void Run() {
     node.LoadState(FLAGS_load_state_filename, FLAGS_load_frozen_state);
   }
 
-  if (FLAGS_start_trajectory_with_default_topics) {
+  // 开始轨迹跟踪
+  //  1. StartTrajectoryWithDefaultTopics: 使用系统默认的订阅主题
+  //  2. start_trajectory: 在调用"服务"的时候还需要提供轨迹配置和订阅主题 -> Node::HandleStartTrajectory()
+  if (FLAGS_start_trajectory_with_default_topics) { // default: true
     node.StartTrajectoryWithDefaultTopics(trajectory_options);
   }
 
+  // ROS的逻辑循环, node对象将通过消息回调多线程等机制完成整个定位建图过程
   ::ros::spin();
 
   node.FinishAllTrajectories();
   node.RunFinalOptimization();
 
   if (!FLAGS_save_state_filename.empty()) {
+    // Write the current state to the file, state_filename.pbstream
     node.SerializeState(FLAGS_save_state_filename,
                         true /* include_unfinished_submaps */);
   }

@@ -55,11 +55,11 @@ class MapBuilderBridge {
     // current 'local_pose' at 'time'.
     struct LocalSlamData {
       ::cartographer::common::Time time;
-      ::cartographer::transform::Rigid3d local_pose;
+      ::cartographer::transform::Rigid3d local_pose;  // 优化匹配出来的local_pose——在submap这个局部坐标系中的位姿
       ::cartographer::sensor::RangeData range_data_in_local;
     };
     std::shared_ptr<const LocalSlamData> local_slam_data;
-    cartographer::transform::Rigid3d local_to_map;
+    cartographer::transform::Rigid3d local_to_map;  // different from local_pose ?
     std::unique_ptr<cartographer::transform::Rigid3d> published_to_tracking;
     TrajectoryOptions trajectory_options;
   };
@@ -103,6 +103,10 @@ class MapBuilderBridge {
   SensorBridge* sensor_bridge(int trajectory_id);
 
  private:
+  /**
+   * @brief Encapsulate the {time, local_pose, std::move(range_data_in_local)} into LocalTrajectoryData::LocalSlamData()
+   * 
+   */
   void OnLocalSlamResult(const int trajectory_id,
                          const ::cartographer::common::Time time,
                          const ::cartographer::transform::Rigid3d local_pose,
