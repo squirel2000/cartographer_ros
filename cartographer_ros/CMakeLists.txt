@@ -101,9 +101,12 @@ if (NOT ${BUILD_GRPC})
   list(REMOVE_ITEM ALL_TESTS ${ALL_GRPC_FILES})
   list(REMOVE_ITEM ALL_EXECUTABLES ${ALL_GRPC_FILES})
 endif()
+# 生成library
 add_library(${PROJECT_NAME} STATIC ${ALL_SRCS})
+# 添加子目录,生成可执行文件
 add_subdirectory("cartographer_ros")
 
+# 连接到cartographer
 target_link_libraries(${PROJECT_NAME} PUBLIC cartographer)
 
 # Lua
